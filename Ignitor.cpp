@@ -17,6 +17,36 @@ float phase = 0;        // Phase of the target frequency
 // Data buffer for the moving window
 std::vector<float> data_window;
 
+// Simulated GPIO setup function (replace this with your actual setup logic)
+void setupGPIO(int pin, bool mode) {
+    std::cout << "Setting up GPIO pin " << pin << " in mode " << mode << std::endl;
+}
+
+// Simulated GPIO read function (replace this with your actual reading logic)
+bool readGPIO(int pin) {
+    std::cout << "Reading from GPIO pin " << pin << std::endl;
+    return true;  // Replace this with the actual reading logic
+}
+
+float readFlowSensor(int pin) {
+    setupGPIO(pin, false);  // Replace false with the actual mode for input
+
+    int flowRate = 0;
+
+    // Simulate periodic readings (for demonstration purposes)
+    for (int i = 0; i < 5; ++i) {  // Simulate 5 readings (adjust as needed)
+        // Assuming you have some delay to simulate periodic readings
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+
+        // Simulated pulse detection (replace this with actual logic)
+        if (readGPIO(pin)) {
+            flowRate++;
+        }
+    }
+
+    return flowRate;
+}
+
 // Function to calculate the Goertzel coefficients
 void calcGoertzelCoefficients() {
     int k = static_cast<int>(N * f_target / fs);
