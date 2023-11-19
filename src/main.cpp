@@ -1,4 +1,5 @@
-#include "mbed.h"
+#include <SoftwareSerial.h>
+#include <ModbusMaster.h>
 #include <cmath>
 #include <vector>
 
@@ -19,32 +20,33 @@ std::vector<float> data_window;
 
 // Simulated GPIO setup function (replace this with your actual setup logic)
 void setupGPIO(int pin, bool mode) {
-    std::cout << "Setting up GPIO pin " << pin << " in mode " << mode << std::endl;
+    pinMode(pin, mode ? OUTPUT : INPUT);
+    Serial.println("Setting up GPIO pin " + String(pin) + " in mode " + String(mode));
 }
 
 // Simulated GPIO read function (replace this with your actual reading logic)
 bool readGPIO(int pin) {
-    std::cout << "Reading from GPIO pin " << pin << std::endl;
-    return true;  // Replace this with the actual reading logic
+    Serial.println("Reading from GPIO pin " + String(pin));
+    return digitalRead(pin) == HIGH;  // Replace this with the actual reading logic
 }
 
-float readFlowSensor(int pin) {
+float readFlowSensor(ModbusMaster& sensor, int pin) {
     setupGPIO(pin, false);  // Replace false with the actual mode for input
 
-    int flowRate = 0;
+    uint16_t flowRate = 0;
 
-    // Simulate periodic readings (for demonstration purposes)
-    for (int i = 0; i < 5; ++i) {  // Simulate 5 readings (adjust as needed)
-        // Assuming you have some delay to simulate periodic readings
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+    // Read flow using MODBUS
+    uint8_t result = sensor.readHoldingRegisters(FLOW_REGISTER, FLOW_DATA_SIZE);
 
-        // Simulated pulse detection (replace this with actual logic)
-        if (readGPIO(pin)) {
-            flowRate++;
+    if (result == sensor.ku8MBSuccess) {
+        for (uint8_t j = 0; j < FLOW_DATA_SIZE; j++) {
+            flowRate = sensor.getResponseBuffer(j);
         }
+        return static_cast<float>(flowRate);
+    } else {
+        Serial.println("MODBUS Failure. Code: " + String(result));
+        return 0.0;
     }
-
-    return flowRate;
 }
 
 // Function to calculate the Goertzel coefficients
@@ -69,40 +71,48 @@ void performGoertzelAlgorithm(float x_curr) {
     phase = atan2(x_prev1, x_prev2);
 }
 
-int main() {
+void setup() {
+    Serial.begin(9600);
+
     // Initializing and configuring microcontroller peripherals and GPIO pins
+    SoftwareSerial swSerial(2, 3); // RX, TX
+    ModbusMaster sensor;
+    swSerial.begin(9600);
+    sensor.begin(1, swSerial); // MODBUS_DEVICE_ID, SoftwareSerial
 
     calcGoertzelCoefficients();
+}
 
-    while (true) {
-        // Read the input signal from the flow sensor
-        float input_signal = readFlowSensor(); // Replace readFlowSensor() with actual function to read from flow sensor
+void loop() {
+    // Read the input signal from the flow sensor using MODBUS
+    float input_signal = readFlowSensor(sensor, 4); // Replace 4 with the actual pin connected to the flow sensor
 
-        // Add the new data point to the data_window
-        data_window.push_back(input_signal);
+    // Add the new data point to the data_window
+    data_window.push_back(input_signal);
 
-        // If the size of data_window exceeds N, remove the oldest data point
-        if (data_window.size() > N) {
-            data_window.erase(data_window.begin());
-        }
-
-        // Perform Goertzel algorithm on the data in the data_window
-        performGoertzelAlgorithm(input_signal);
-
-        // Fourier series approximation using Goertzel-derived amplitude and phase data
-        float t = 0; // Time variable for generating the Fourier series
-        float sum = 0; // Sum of the Fourier series
-        for (int i = 0; i < data_window.size(); i++) {
-            // Generate the ith harmonic component and add it to the sum
-            sum += amplitude * cos(2 * 3.14159 * f_target * t / fs + phase);
-            t += 1.0 / fs;
-        }
-
-        // Additional code for using the Fourier series approximation (sum)
-        // For example, you can use 'sum' to represent the approximated signal.
-        // ...
-
-        // Additional code for the main loop
-        // ...
+    // If the size of data_window exceeds N, remove the oldest data point
+    if (data_window.size() > N) {
+        data_window.erase(data_window.begin());
     }
+
+    // Perform Goertzel algorithm on the data in the data_window
+    performGoertzelAlgorithm(input_signal);
+
+    // Fourier series approximation using Goertzel-derived amplitude and phase data
+    float t = 0; // Time variable for generating the Fourier series
+    float sum = 0; // Sum of the Fourier series
+    for (int i = 0; i < data_window.size(); i++) {
+        // Generate the ith harmonic component and add it to the sum
+        sum += amplitude * cos(2 * 3.14159 * f_target * t / fs + phase);
+        t += 1.0 / fs;
+    }
+
+    // Additional code for using the Fourier series approximation (sum)
+    // For example, you can use 'sum' to represent the approximated signal.
+    // ...
+
+    // Additional code for the main loop
+    // ...
+
+    delay(1000); // Simulated delay for periodic readings (adjust as needed)
 }
