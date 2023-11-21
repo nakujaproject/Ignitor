@@ -58,7 +58,8 @@ void performGoertzelAlgorithm(float x_curr) {
 
 void setupGPIO(int pin, bool mode) {
     pinMode(pin, mode ? OUTPUT : INPUT);
-    Serial.println("Setting 
+    Serial.println("Setting up GPIO pin " + String(pin) + " in mode " + String(mode));
+}
 
 void openSolenoid(int solenoidPin) {
     digitalWrite(solenoidPin, HIGH);
