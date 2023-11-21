@@ -1,0 +1,143 @@
+#include <Arduino.h>
+
+// Constants for Goertzel algorithm
+const float f_target = 100; // Target frequency [Hz]
+const float fs = 1000;      // Sampling frequency [Hz]
+const int N = 100;          // Number of samples for Goertzel algorithm
+const int PREDICTION_POINTS = 3; // Number of points to predict
+
+// Pin definitions
+#define FUEL_FLOW_PIN       15  // Replace with the actual pin number
+#define OXIDIZER_FLOW_PIN   A8
+#define OXIDIZER_SOLENOID   12
+#define FUEL_SOLENOID       A3
+#define FUEL_PRESSURE_PIN   A5
+#define OXIDIZER_PRESSURE_PIN A7
+#define IGNITION_SPARK_PIN  A10
+
+// Constants for Goertzel algorithm
+const float f_target = 100; // Target frequency [Hz]
+const float fs = 1000;      // Sampling frequency [Hz]
+const int N = 100;          // Number of samples for Goertzel algorithm
+
+// Goertzel algorithm variables
+float r, s, w;          // Goertzel coefficients
+float x_prev1 = 0;      // Previous output x(n-1)
+float x_prev2 = 0;      // Previous output x(n-2)
+float amplitude = 0;    // Amplitude of the target frequency
+float phase = 0;        // Phase of the target frequency
+
+// Data buffer for the moving window
+std::vector<float> data_window;
+
+// Arrays to store predicted values
+float predictedFuelFlow[PREDICTION_POINTS];
+float predictedOxidizerFlow[PREDICTION_POINTS];
+
+unsigned long loopStartTime;  // To store the start time of the loop
+
+// ... (rest of the code remains unchanged)
+
+// Function to calculate the Goertzel coefficients
+void calcGoertzelCoefficients() {
+    int k = static_cast<int>(N * f_target / fs);
+    float theta = 2 * 3.14159 * k / N;
+    r = 2.0 * cos(theta);
+    s = sin(theta);
+    w = 2.0 * cos(2 * theta);
+}
+
+// Function to perform the Goertzel algorithm and obtain amplitude and phase data
+void performGoertzelAlgorithm(float x_curr) {
+    float x_temp = x_curr + r * x_prev1 - x_prev2;
+    x_prev2 = x_prev1;
+    x_prev1 = x_temp;
+
+    // Calculate magnitude squared (amplitude squared) from Goertzel output
+    float x_result = x_prev2 * x_prev2 + x_prev1 * x_prev1 - r * x_prev1 * x_prev2;
+    // Convert magnitude squared to amplitude and phase
+    amplitude = sqrt(x_result);
+    phase = atan2(x_prev1, x_prev2);
+}
+
+void setupGPIO(int pin, bool mode) {
+    pinMode(pin, mode ? OUTPUT : INPUT);
+    Serial.println("Setting 
+
+void openSolenoid(int solenoidPin) {
+    digitalWrite(solenoidPin, HIGH);
+    Serial.println("Opening solenoid on pin " + String(solenoidPin));
+}
+
+void closeSolenoid(int solenoidPin) {
+    digitalWrite(solenoidPin, LOW);
+    Serial.println("Closing solenoid on pin " + String(solenoidPin));
+}
+
+void activateSparkPlug() {
+    digitalWrite(IGNITION_SPARK_PIN, HIGH);
+    Serial.println("Activating spark plug on pin " + String(IGNITION_SPARK_PIN));
+}
+
+// Arduino-specific setup function
+void setup() {
+    Serial.begin(9600);
+
+    // Initializing and configuring microcontroller peripherals and GPIO pins
+    calcGoertzelCoefficients();
+    setupGPIO(FUEL_FLOW_PIN, INPUT);
+    setupGPIO(OXIDIZER_FLOW_PIN, INPUT);
+    setupGPIO(OXIDIZER_SOLENOID, OUTPUT);
+    setupGPIO(FUEL_SOLENOID, OUTPUT);
+    setupGPIO(FUEL_PRESSURE_PIN, INPUT);
+    setupGPIO(OXIDIZER_PRESSURE_PIN, INPUT);
+    setupGPIO(IGNITION_SPARK_PIN, OUTPUT);
+}
+
+// Arduino-specific loop function
+void loop() {
+    // Record the start time of the loop
+    loopStartTime = millis();
+
+    // Step 1: Open Fuel Solenoid Valve and Measure Fuel Flow
+    openSolenoid(FUEL_SOLENOID);
+    float fuelFlow = readFlowSensor(FUEL_FLOW_PIN);
+
+    // Step 2: Predict next PREDICTION_POINTS points using Goertzel filter
+    for (int i = 0; i < PREDICTION_POINTS; ++i) {
+        performGoertzelAlgorithm(fuelFlow);
+        predictedFuelFlow[i] = amplitude; // Store predicted values
+    }
+
+    // Step 3: Open Oxidizer Solenoid Valve and Measure Oxidizer Flow
+    openSolenoid(OXIDIZER_SOLENOID);
+    float oxidizerFlow = readFlowSensor(OXIDIZER_FLOW_PIN);
+
+    // Step 4: Predict next PREDICTION_POINTS points using Goertzel filter
+    for (int i = 0; i < PREDICTION_POINTS; ++i) {
+        performGoertzelAlgorithm(oxidizerFlow);
+        predictedOxidizerFlow[i] = amplitude; // Store predicted values
+    }
+
+    // Step 5: Compare predicted values against the threshold for oxidizer flow rate
+    for (int i = 0; i < PREDICTION_POINTS; ++i) {
+        if (predictedOxidizerFlow[i] < thresholdValue) {
+            // Threshold not reached, continue predicting and measuring
+            fuelFlow = readFlowSensor(FUEL_FLOW_PIN);
+            oxidizerFlow = readFlowSensor(OXIDIZER_FLOW_PIN);
+        } else {
+            // Threshold reached, activate spark plug and exit loop
+            activateSparkPlug();
+            return;
+        }
+    }
+
+    // Record the end time of the loop
+    unsigned long loopEndTime = millis();
+
+    // Calculate and print the execution time of the loop
+    Serial.println("Loop execution time: " + String(loopEndTime - loopStartTime) + " ms");
+
+    // Additional code for the main loop
+    // ...
+}
