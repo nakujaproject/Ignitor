@@ -32,6 +32,16 @@ float predictedOxidizerFlow[PREDICTION_POINTS];
 
 unsigned long loopStartTime;  // To store the start time of the loop
 
+// Modbus configuration
+#define RX_PIN D2 // connect to converter's RX wire
+#define TX_PIN D3 // connect to converter's TX wire
+#define MODBUS_DEVICE_ID 1
+#define FLOW_REGISTER 1
+#define FLOW_DATA_SIZE 2
+
+SoftwareSerial swSerial(RX_PIN, TX_PIN);
+ModbusMaster sensor;
+
 // ... (rest of the code remains unchanged)
 
 // Function to calculate the Goertzel coefficients
@@ -109,6 +119,11 @@ void setup() {
     setupGPIO(FUEL_PRESSURE_PIN, INPUT);
     setupGPIO(OXIDIZER_PRESSURE_PIN, INPUT);
     setupGPIO(IGNITION_SPARK_PIN, OUTPUT);
+
+    // MODBUS initialization
+    swSerial.begin(9600);
+    sensor.begin(MODBUS_DEVICE_ID, swSerial);
+}
 }
 
 // Arduino-specific loop function
