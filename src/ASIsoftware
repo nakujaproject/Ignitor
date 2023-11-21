@@ -15,10 +15,6 @@ const int PREDICTION_POINTS = 3; // Number of points to predict
 #define OXIDIZER_PRESSURE_PIN A7
 #define IGNITION_SPARK_PIN  A10
 
-// Constants for Goertzel algorithm
-const float f_target = 100; // Target frequency [Hz]
-const float fs = 1000;      // Sampling frequency [Hz]
-const int N = 100;          // Number of samples for Goertzel algorithm
 
 // Goertzel algorithm variables
 float r, s, w;          // Goertzel coefficients
